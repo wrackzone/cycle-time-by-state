@@ -1,0 +1,17 @@
+{
+   "name": "cycletimebystate",
+   "className": "CustomApp",
+   "server": "https://rally1.rallydev.com",
+   "sdk": "2.0rc1",
+   "javascript": [
+      "App.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/async/1.22/async.min.js",
+      "https://storage.googleapis.com/versions.lumenize.com/v0.7.2/Lumenize-min.js",
+      "https://rally1.rallydev.com/apps/2.0rc1/lib/analytics/analytics-all.js",
+      "moment.js",
+      "underscoreAddon.js"
+   ],
+   "css": [
+      "app.css"
+   ]
+}
