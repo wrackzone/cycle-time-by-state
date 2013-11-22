@@ -16,15 +16,16 @@ Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     
-    // kanbanField : "c_KanbanState",
-    kanbanField : "c_KanbanBoardOperation",
-    finalValue : "Completed",
+    kanbanField : "c_KanbanState",
+    // kanbanField : "c_KanbanBoardOperation",
+    finalValue : "Done",
     
     launch: function() {
         //Write app code here
         console.log("launch");
         app = this;
-        this.startDate = moment().startOf('month').toISOString();
+        this.startDate = moment().startOf('year').toISOString();
+        this.createUI();
         
         async.waterfall([   app.getCompletedItems, 
                             app.getSnapshotsForCompletedItems,
@@ -35,6 +36,80 @@ Ext.define('CustomApp', {
                 console.log( "whole mess of results ", err, results );
             }
         );
+
+    },
+    
+    createUI : function() {
+        
+        var createButton = function() {
+            if (app.goButton)
+                app.goButton.destroy();
+            app.goButton = Ext.create("Rally.ui.Button", {
+                margin : 5,
+                height : 20,
+                text : "Go",
+                handler: function() {
+                    Ext.Msg.alert('Button', 'You clicked me');
+                }
+            });
+            app.boxcontainer.add(app.goButton);
+            
+        };
+        
+        var createValueCombo = function(valuefield) {
+            if (app.valueCombo)
+                app.valueCombo.destroy();
+            
+            app.valueCombo = Ext.create("Rally.ui.combobox.FieldValueComboBox", {
+                padding : 5,
+                
+                stateful : true, stateId : "Rally.ui.combobox.FieldValueComboBox",
+                model: 'UserStory',
+                field: valuefield,
+                listeners : {
+                    ready : function(t) {
+                        console.log("value ready",t.getValue());
+                        if (t.getValue()!=="")
+                            createButton();
+                    },
+                    select : function(a,selected,c) {
+                        console.log("selected",selected);
+                        createButton();
+                    }
+                }
+            });
+            return app.valueCombo;
+        };
+        
+        app.fieldCombo = Ext.create('Rally.ui.combobox.FieldComboBox', {
+            padding : 5,
+            stateful : true, stateId : "Rally.ui.combobox.FieldComboBox",
+            model: 'UserStory',
+            listeners : {
+                ready : function(t,e) {
+                    createValueCombo(t.getValue());
+                    app.boxcontainer.add(app.valueCombo);
+                },
+                select : function(a,selected,c) {
+                    console.log("selected",selected);
+                    createValueCombo(selected[0].get("value"));
+                    if (app.goButton) app.goButton.destroy();
+                    app.boxcontainer.add(app.valueCombo);
+                }
+            }
+        });
+        
+        app.boxcontainer = Ext.create('Ext.container.Container', {
+            itemId : "container",
+            layout: { type: 'hbox'},
+            width: 400,
+            border: 1,
+            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
+            // padding : 5
+        });
+        app.boxcontainer.add(app.fieldCombo);
+        this.add(app.boxcontainer);
+        
     },
     
     // reads the snapshots for items that have been completed since the specified start date.
@@ -71,6 +146,7 @@ Ext.define('CustomApp', {
         };
 
         var snapshotStore = Ext.create('Rally.data.lookback.SnapshotStore', storeConfig);
+        
     },
     
     getSnapshotsForCompletedItems : function(completedItems,callback) {
@@ -119,12 +195,17 @@ Ext.define('CustomApp', {
     summarizeResults : function( stateResults, callback ) {
       
         _.each(stateResults, function(result) {
-            result.min = _.min( result.results, function(r) { return r.ticks; }).ticks;
-            result.max = _.max( result.results, function(r) { return r.ticks; }).ticks;
-            result.avg = _.reduce(result.results, function(memo, num) {
-        		    return memo + num.ticks;
-                }, 0) / result.results.length;
-            result.median = _.median( result.results,function(r) { return r.ticks;});
+            
+            var resultTicks = _.pluck(result.results, function(r) { return r.ticks; });
+            result.min = _.min( resultTicks ) ;
+            result.max = _.max( resultTicks );
+            result.avg = _.reduce(resultTicks, function(memo, num) {
+        		    return memo + num;
+                }, 0) / resultTicks.length;
+                
+            result.median = _.median( _.sortBy(resultTicks) , function(r) { return r;});
+            result.mean   = _.mean( resultTicks , function(r) { return r;});
+            result.ticks = _.sortBy(resultTicks);
         });
         callback(null,stateResults);
         
@@ -191,7 +272,7 @@ _.mixin({
       };
       return result;
     };
-    each(obj, function(value, index, list) {
+    _.each(obj, function(value, index, list) {
       var computed = iterator ? iterator.call(context, value, index, list) : value;
       result += computed;
     });
@@ -219,7 +300,7 @@ _.mixin({
       tmpObj = _.clone(obj);
       tmpObj.sort(function(f,s){return f-s;});
     }else{
-      _.isArray(obj) && each(obj, function(value, index, list) {
+      _.isArray(obj) && _.each(obj, function(value, index, list) {
         tmpObj.push(iterator ? iterator.call(context, value, index, list) : value);
         tmpObj.sort();
       });

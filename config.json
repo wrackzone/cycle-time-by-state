@@ -9,9 +9,12 @@
       "https://storage.googleapis.com/versions.lumenize.com/v0.7.2/Lumenize-min.js",
       "https://rally1.rallydev.com/apps/2.0rc1/lib/analytics/analytics-all.js",
       "moment.js",
-      "underscoreAddon.js"
+      "underscoreAddon.js",
+      "lib/pivot.js",
+      "//cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"
    ],
    "css": [
-      "app.css"
+      "app.css",
+      "lib/pivot.css"
    ]
 }

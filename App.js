@@ -12,19 +12,22 @@ Ext.define('CustomApp', {
         //Write app code here
         console.log("launch");
         app = this;
-        this.startDate = moment().startOf('day').toISOString();
+        this.startDate = moment().startOf('month').toISOString();
         this.createUI();
+    },
+
+    run : function () {
         
-        async.waterfall([   app.getCompletedItems, 
-                            app.getSnapshotsForCompletedItems,
-                            app.processSnapshots,
-                            app.summarizeResults
-                        ], 
+        async.waterfall([   
+            app.getCompletedItems, 
+            app.getSnapshotsForCompletedItems,
+            app.processSnapshots,
+            app.summarizeResults
+            ], 
             function( err, results ) {
-                console.log( "whole mess of results ", err, results );
+                console.log( "whole mess of results ", results );
             }
         );
-
     },
     
     createUI : function() {
@@ -37,7 +40,11 @@ Ext.define('CustomApp', {
                 height : 20,
                 text : "Go",
                 handler: function() {
-                    Ext.Msg.alert('Button', 'You clicked me');
+                    console.log("fieldCombo:",app.fieldCombo.getValue());
+                    console.log("valueCombo:",app.valueCombo.getValue());
+                    app.kanbanField = app.fieldCombo.getValue()
+                    app.finalValue  = app.valueCombo.getValue()
+                    app.run();
                 }
             });
             app.boxcontainer.add(app.goButton);
@@ -61,7 +68,7 @@ Ext.define('CustomApp', {
                             createButton();
                     },
                     select : function(a,selected,c) {
-                        console.log("selected",selected);
+                        console.log("selected",selected[0].get("value"));
                         createButton();
                     }
                 }
