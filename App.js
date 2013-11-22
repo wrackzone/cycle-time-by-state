@@ -15,15 +15,16 @@ Ext.define('CustomApp', {
         this.startDate = moment().startOf('day').toISOString();
         this.createUI();
         
-        // async.waterfall([   app.getCompletedItems, 
-        //                     app.getSnapshotsForCompletedItems,
-        //                     app.processSnapshots,
-        //                     app.summarizeResults
-        //                 ], 
-        //     function( err, results ) {
-        //         console.log( "whole mess of results ", err, results );
-        //     }
-        // );
+        async.waterfall([   app.getCompletedItems, 
+                            app.getSnapshotsForCompletedItems,
+                            app.processSnapshots,
+                            app.summarizeResults
+                        ], 
+            function( err, results ) {
+                console.log( "whole mess of results ", err, results );
+            }
+        );
+
     },
     
     createUI : function() {
@@ -78,6 +79,7 @@ Ext.define('CustomApp', {
                     app.boxcontainer.add(app.valueCombo);
                 },
                 select : function(a,selected,c) {
+                    console.log("selected",selected);
                     createValueCombo(selected[0].get("value"));
                     if (app.goButton) app.goButton.destroy();
                     app.boxcontainer.add(app.valueCombo);
@@ -95,6 +97,7 @@ Ext.define('CustomApp', {
         });
         app.boxcontainer.add(app.fieldCombo);
         this.add(app.boxcontainer);
+        
     },
     
     // reads the snapshots for items that have been completed since the specified start date.
@@ -131,6 +134,7 @@ Ext.define('CustomApp', {
         };
 
         var snapshotStore = Ext.create('Rally.data.lookback.SnapshotStore', storeConfig);
+        
     },
     
     getSnapshotsForCompletedItems : function(completedItems,callback) {
