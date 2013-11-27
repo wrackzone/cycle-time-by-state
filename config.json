@@ -10,9 +10,9 @@
       "https://storage.googleapis.com/versions.lumenize.com/v0.7.2/Lumenize-min.js",
       "https://rally1.rallydev.com/apps/2.0rc1/lib/analytics/analytics-all.js",
       "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.3.1/moment.min.js",
-      "https://raw.github.com/nicolaskruchten/pivottable/master/examples/pivot.js",
       "https://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.3/jquery.min.js",
-      "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js"
+      "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js",
+      "https://c9.io/bazzert/cycle-time-by-state/workspace/lib/pivot.js"
    ],
    "css": [
       "app.css",

@@ -28,15 +28,17 @@ Ext.define('CustomApp', {
         var p = this.down("#panel");
         app.jqPanel = "#"+p.id;
 
-
-
     },
 
     run : function () {
+
+        app.mask = new Ext.LoadMask(Ext.getBody(), {msg:"Please wait..."});
+        app.mask.show();
         
         async.waterfall([   
-            app.getCompletedItems, 
+            app.getCompletedItems,
             app.getSnapshotsForCompletedItems,
+            app.getProjectNamesForCompletedItems,
             app.prepareSnapshots,
             app.pivotData
             // app.processSnapshots,
@@ -44,6 +46,7 @@ Ext.define('CustomApp', {
             ], 
             function( err, results ) {
                 console.log( "whole mess of results ", results );
+                app.mask.hide();
             }
         );
     },
@@ -139,7 +142,7 @@ Ext.define('CustomApp', {
                 'Children' : { "$exists" : false}
         };
         find[app.kanbanField] =  app.finalValue;
-        find["_PreviousValues."+app.kanbanField] =  {"$ne" : "null" };
+        find["_PreviousValues."+app.kanbanField] =  {"$ne" : null };
         find["_ValidFrom"] = { "$gte" : app.startDate };
 
         var storeConfig = {
@@ -251,19 +254,24 @@ Ext.define('CustomApp', {
                 return results;
         };
 
+        var teamNameDeriver = function(record) {
+
+            var p = _.find(app.projects, function(f) { return record.Project === f.get("ObjectID");});
+
+            return p ? p.get("Name") : record.Project;
+
+        };
+
 
 
         var data = _.map(snapshots,function(s) { 
             return s.data;
         });
 
-        console.log("data",data);
-        console.log("app.kanbanField",app.kanbanField);
-
         $(app.jqPanel).pivotUI(
-
             data,                    
             {
+                derivedAttributes : { "Team" : teamNameDeriver },
                 aggregators : { cycleTime : cycleTime },
                 rows: [app.kanbanField],
                 cols: ["Project"],
@@ -292,10 +300,36 @@ Ext.define('CustomApp', {
         };
         var snapshotStore = Ext.create('Rally.data.lookback.SnapshotStore', storeConfig);
     },
+
+    getProjectNamesForCompletedItems : function(completedItems,snapshots,callback) {
+
+        var projectOids = _.uniq(_.pluck( snapshots, function(c) { return c.get("Project");}) );
+        console.log("Distinct Project IDs:",projectOids);
+
+        var configs = _.map(projectOids, function(p) {
+            return {
+                    model : "Project",
+                    fetch : ["Name","ObjectID"],
+                    filters : [{property:"ObjectID",value:p}]
+                };
+        });
+
+        async.map(configs,app.wsapiQuery,function(err,results) {
+
+            app.projects = _.flatten(results);
+            console.log("projects:",app.projects);
+            // pass on to next function in the chain.
+            callback(null,completedItems,snapshots);
+
+        });
+
+
+    },
     
     getSnapshotsForCompletedItems : function(completedItems,callback) {
 
         var that = this;
+
         var completedOids = _.uniq( _.pluck( completedItems, function(c) { return c.get("ObjectID"); } ));        
         console.log("oids",completedOids.length);
 
@@ -329,46 +363,7 @@ Ext.define('CustomApp', {
 
         });
 
-        // var fetch = ['_UnformattedID','ObjectID','_TypeHierarchy','PlanEstimate', 'ScheduleState',app.kanbanField];
-        // var hydrate = ['_TypeHierarchy','ScheduleState',app.kanbanField];
-        // var find = {
-        //     '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
-        //     '_ProjectHierarchy' : { "$in": app.getContext().getProject().ObjectID } , 
-        //     'ObjectID' : { "$in" : completedOids }
-        // };
 
-        // we need to slice the list of oids into small groups, say 200
-
-        // var storeConfig = {
-        //     find : find,
-        //     autoLoad : true,
-        //     pageSize:2000,
-        //     limit: 'Infinity',
-        //     fetch: fetch,
-        //     hydrate: hydrate,
-        //     listeners : {
-        //         scope : this,
-        //         load: function(store, snapshots, success) {
-        //             console.log("success",success);
-        //             console.log("success",snapshots.length);
-        //             // console.log("snapshots for completed items:",JSON.stringify(snapshots));
-        //             callback(null,completedItems,snapshots);
-        //         }
-        //     }
-        // };
-
-        // var snapshotStore = Ext.create('Rally.data.lookback.SnapshotStore', storeConfig);
-        
-        // snapshotStore.load({
-        //     params: {
-        //         compress: true,
-        //         removeUnauthorizedSnapshots: true
-        //     },
-        //     callback: function(records) {
-        //         console.log("records",records.data.items);
-        //         that.processSnapshots(records.data.items);
-        //     }
-        // });
     }, 
     
     summarizeResults : function( stateResults, callback ) {
@@ -402,6 +397,24 @@ Ext.define('CustomApp', {
             callback(null,stateSnapshots);
         });
     },
+
+    wsapiQuery : function( config , callback ) {
+        Ext.create('Rally.data.WsapiDataStore', {
+            autoLoad : true,
+            limit : "Infinity",
+            model : config.model,
+            fetch : config.fetch,
+            filters : config.filters,
+            // context: config.context,
+            listeners : {
+                scope : this,
+                load : function(store, data) {
+                    callback(null,data);
+                }
+            }
+        });
+    },
+
     
     calcCyleTimeForState : function( stateSnapshots, callback ) {
         var that = this;
