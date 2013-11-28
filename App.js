@@ -45,7 +45,6 @@ Ext.define('CustomApp', {
             // app.summarizeResults
             ], 
             function( err, results ) {
-                console.log( "whole mess of results ", results );
                 app.mask.hide();
             }
         );
@@ -174,6 +173,7 @@ Ext.define('CustomApp', {
             // set the month
             var ci = _.find(completedItems,function(c) { return c.get("ObjectID") === s.get("ObjectID");});
             var month = moment(ci.get("_ValidFrom")).format ("MMM YYYY");
+            s.set("CompletedDate",ci.get("_ValidFrom"));
             s.set("Month",month);
             s.set("Size",ci.get("PlanEstimate"));
         });
@@ -262,6 +262,10 @@ Ext.define('CustomApp', {
 
         };
 
+        var completedDateDeriver = function(record) {
+            return moment(record.CompletedDate).format ("MMM YYYY");
+        }
+
 
 
         var data = _.map(snapshots,function(s) { 
@@ -271,10 +275,10 @@ Ext.define('CustomApp', {
         $(app.jqPanel).pivotUI(
             data,                    
             {
-                derivedAttributes : { "Team" : teamNameDeriver },
+                derivedAttributes : { "Team" : teamNameDeriver, "MonthCompleted" : completedDateDeriver },
                 aggregators : { cycleTime : cycleTime },
                 rows: [app.kanbanField],
-                cols: ["Project"],
+                cols: ["Team"],
                 hiddenAttributes : ["PlanEstimate", "ObjectID","_TypeHierarchy","_UnformattedID","_ValidFrom","_ValidTo"]
             }
         );
@@ -317,12 +321,20 @@ Ext.define('CustomApp', {
         async.map(configs,app.wsapiQuery,function(err,results) {
 
             app.projects = _.flatten(results);
+
+            // remove snapshots where the project was not found (out of scope, closed etc.)
+            var filteredSnapshots = _.filter(snapshots,function(s) {
+                var p = _.find( app.projects, function(p) { 
+                    return s.get("Project")===p.get("ObjectID");
+                });
+                return !_.isUndefined(p) && !_.isNull(p);
+            });
+
             console.log("projects:",app.projects);
             // pass on to next function in the chain.
-            callback(null,completedItems,snapshots);
+            callback(null,completedItems,filteredSnapshots);
 
         });
-
 
     },
     
@@ -334,7 +346,7 @@ Ext.define('CustomApp', {
         console.log("oids",completedOids.length);
 
         var oidsArrays = [];
-        var i,j,chunk = 200;
+        var i,j,chunk = 50;
         for (i=0, j=completedOids.length; i<j; i+=chunk) {          
             oidsArrays.push(completedOids.slice(i,i+chunk));
         }
