@@ -21,7 +21,7 @@ Ext.define('CustomApp', {
             title: 'Hello',
             width: 800,
             height: 600,
-            html: '<p>World!</p>'
+            html: '<p></p>'
         });
 
         this.add(panel);
