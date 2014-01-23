@@ -12,7 +12,7 @@
       "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.3.1/moment.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.3/jquery.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js",
-      "https://c9.io/bazzert/cycle-time-by-state/workspace/lib/pivot.js"
+      "https://wrackzone.github.io/lib/pivottable/pivot.js"
    ],
    "css": [
       "app.css",

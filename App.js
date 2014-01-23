@@ -13,7 +13,7 @@ Ext.define('CustomApp', {
         console.log("launch");
         app = this;
         // this.startDate = moment().startOf('month').toISOString();
-        this.startDate = moment().subtract('month',3).toISOString();
+        this.startDate = moment().subtract('month',6).toISOString();
         this.createUI();
 
         var panel = Ext.create('Ext.container.Container', {
@@ -214,17 +214,27 @@ Ext.define('CustomApp', {
         };
 
         var cycleTime = function() {
+
           return function(x,y,z) {
+            var xx = x;
+            var yy = y;
+            var zz = z;
             return {
               recs : [],
+
               push: function(record) {
                 this.recs.push(record);
                 // return this.count++;
                 return this.recs.length;
               },
               value: function(value) {
+                console.log("Records for:",yy,zz);
+                console.log("calculating cycle time for #records:",this.recs.length);
+                
                 var ct = (calcCyleTime(this.recs));
-                return _.mean( _.pluck(ct,"ticks"));
+                var mean = _.mean( _.pluck(ct,"ticks"));
+                console.log("mean",mean);
+                return mean
               },
               format: numberFormat(0),
               label: "cycleTime"
@@ -279,7 +289,7 @@ Ext.define('CustomApp', {
                 aggregators : { cycleTime : cycleTime },
                 rows: [app.kanbanField],
                 cols: ["Team"],
-                hiddenAttributes : ["PlanEstimate", "ObjectID","_TypeHierarchy","_UnformattedID","_ValidFrom","_ValidTo"]
+                hiddenAttributes : ["PlanEstimate", "ObjectID","_TypeHierarchy","_UnformattedID","_ValidFrom","_ValidTo","Project","CompletedDate"]
             }
         );
         
