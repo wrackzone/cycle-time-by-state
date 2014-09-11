@@ -14,7 +14,15 @@ Ext.define('CustomApp', {
         app = this;
         // this.startDate = moment().startOf('month').toISOString();
         this.startDate = moment().subtract('month',6).toISOString();
-        this.createUI();
+
+
+        if ((app.getSetting("stateField") === "") &&
+            (app.getSetting("finalValue") === "")) {
+            this.createUI();
+        } else {
+            app.kanbanField = app.getSetting("stateField")
+            app.finalValue  = app.getSetting("finalValue")
+        }
 
         var panel = Ext.create('Ext.container.Container', {
             itemId : 'panel',
@@ -28,7 +36,40 @@ Ext.define('CustomApp', {
         var p = this.down("#panel");
         app.jqPanel = "#"+p.id;
 
+        if (!((app.getSetting("stateField") === "") &&
+            (app.getSetting("finalValue") === ""))) {
+            app.run();
+        }
+
     },
+
+    config: {
+
+    defaultSettings : {
+
+        stateField : "",
+        finalValue : ""
+
+        }
+    },
+
+    getSettingsFields: function() {
+        var values = [
+            {
+                name: 'stateField',
+                xtype: 'rallytextfield',
+                label : "Field name cycle time calculation is based on eg. State"
+            },
+            {
+                name: 'finalValue',
+                xtype: 'rallytextfield',
+                label: 'Filter items that have moved into this state eg. Closed or Accepted'
+            }
+        ];
+
+        return values;
+    },
+
 
     run : function () {
 
@@ -41,8 +82,6 @@ Ext.define('CustomApp', {
             app.getProjectNamesForCompletedItems,
             app.prepareSnapshots,
             app.pivotData
-            // app.processSnapshots,
-            // app.summarizeResults
             ], 
             function( err, results ) {
                 app.mask.hide();
@@ -137,7 +176,7 @@ Ext.define('CustomApp', {
         
         var find = {
                 '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
-                '_ProjectHierarchy' : { "$in": app.getContext().getProject().ObjectID },
+                '_ProjectHierarchy' : { "$in": [app.getContext().getProject().ObjectID] },
                 'Children' : { "$exists" : false}
         };
         find[app.kanbanField] =  app.finalValue;
@@ -368,7 +407,7 @@ Ext.define('CustomApp', {
                 hydrate : ['_TypeHierarchy','ScheduleState',app.kanbanField],
                 find : {
                     '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
-                    '_ProjectHierarchy' : { "$in": app.getContext().getProject().ObjectID }, 
+                    '_ProjectHierarchy' : { "$in": [app.getContext().getProject().ObjectID] }, 
                     'ObjectID' : { "$in" : oArray }
                 }
             }

@@ -2,7 +2,7 @@
    "name": "cycletimebystate",
    "className": "CustomApp",
    "server": "https://rally1.rallydev.com",
-   "sdk": "2.0rc1",
+   "sdk": "2.0rc3",
    "javascript": [
       "App.js",
       "underscoreAddon.js",
@@ -12,7 +12,7 @@
       "https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.3.1/moment.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/jquery/1.8.3/jquery.min.js",
       "https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js",
-      "https://wrackzone.github.io/lib/pivottable/pivot.js"
+      "https://googledrive.com/host/0B3qw8lEQxbDXeWw2aFRWbWcydHc"
    ],
    "css": [
       "app.css",
