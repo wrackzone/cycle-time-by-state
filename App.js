@@ -13,7 +13,8 @@ Ext.define('CustomApp', {
         console.log("launch");
         app = this;
         // this.startDate = moment().startOf('month').toISOString();
-        this.startDate = moment().subtract('month',6).toISOString();
+        // this.startDate = moment().subtract('month',6).toISOString();
+        this.startDate = moment().subtract('month',app.getSetting("months")).toISOString();
 
 
         if ((app.getSetting("stateField") === "") &&
@@ -48,7 +49,9 @@ Ext.define('CustomApp', {
     defaultSettings : {
 
         stateField : "",
-        finalValue : ""
+        finalValue : "",
+        timeInHours : true,
+        months : 6
 
         }
     },
@@ -64,7 +67,18 @@ Ext.define('CustomApp', {
                 name: 'finalValue',
                 xtype: 'rallytextfield',
                 label: 'Filter items that have moved into this state eg. Closed or Accepted'
+            },
+            {
+                name: 'timeInHours',
+                xtype: 'rallycheckboxfield',
+                label: 'Show cycle time values in hours (instead of days)'
+            },
+            {
+                name: 'months',
+                xtype: 'rallytextfield',
+                label: 'Number of months to consider'
             }
+
         ];
 
         return values;
@@ -269,8 +283,10 @@ Ext.define('CustomApp', {
               value: function(value) {
                 console.log("Records for:",yy,zz);
                 console.log("calculating cycle time for #records:",this.recs.length);
-                
+                // console.log("#records:",this.recs);
+
                 var ct = (calcCyleTime(this.recs));
+                // console.log("#cycletimes",_.pluck(ct,"ticks"));
                 var mean = _.mean( _.pluck(ct,"ticks"));
                 console.log("mean",mean);
                 return mean
@@ -283,7 +299,8 @@ Ext.define('CustomApp', {
 
         var calcCyleTime = function( snapshots ) {
                 var that = this;
-                var granularity = 'day';
+                // var granularity = 'day';
+                var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
                 var tz = 'America/New_York';
                 
                 var config = { //  # default work days and holidays
@@ -291,7 +308,9 @@ Ext.define('CustomApp', {
                     tz: tz,
                     validFromField: '_ValidFrom',
                     validToField: '_ValidTo',
-                    uniqueIDField: 'ObjectID'
+                    uniqueIDField: 'ObjectID',
+                    workDayStartOn: {hour: 13, minute: 0}, // # 09:00 in Chicago is 15:00 in GMT
+                    workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
                 };
                 
                 var start = moment().dayOfYear(0).toISOString();
@@ -480,7 +499,8 @@ Ext.define('CustomApp', {
     calcCyleTimeForState : function( stateSnapshots, callback ) {
         var that = this;
         var snapshots = _.pluck(stateSnapshots.snapshots,function(s) { return s.data;});
-        var granularity = 'day';
+        // var granularity = 'day';
+        var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
         var tz = 'America/New_York';
         
         var config = { //  # default work days and holidays
@@ -488,7 +508,10 @@ Ext.define('CustomApp', {
             tz: tz,
             validFromField: '_ValidFrom',
             validToField: '_ValidTo',
-            uniqueIDField: 'ObjectID'
+            uniqueIDField: 'ObjectID',
+            workDayStartOn: {hour: 13, minute: 0}, // # 09:00 in Chicago is 15:00 in GMT
+            workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
+
         };
         
         var start = moment().dayOfYear(0).toISOString();
