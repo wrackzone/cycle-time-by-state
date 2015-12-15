@@ -306,7 +306,7 @@ Ext.define('CustomApp', {
                 return this.recs.length;
               },
               value: function(value) {
-                // console.log("Records for:",yy,zz);
+                console.log("Records for:",yy,zz);
                 // console.log("calculating cycle time for #records:",this.recs.length);
                 // console.log("#records:",this.recs);
                 var ct = (calcCyleTime(this.recs));
