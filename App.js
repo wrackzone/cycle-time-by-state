@@ -354,7 +354,12 @@ Ext.define('CustomApp', {
                 
                 var start = moment().dayOfYear(0).toISOString();
                 var end =   moment().toISOString();
-                tisc = new window.parent._lumenize.TimeInStateCalculator(config);
+                var tisc = null;
+                if (_.isUndefined(window.parent._lumenize)) {
+                    tisc = new window._lumenize.TimeInStateCalculator(config);
+                } else {
+                    tisc = new window.parent._lumenize.TimeInStateCalculator(config);
+                }
                 tisc.addSnapshots(snapshots, start, end);
                 var results = tisc.getResults();
                 console.timeEnd("cycle-time");
