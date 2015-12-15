@@ -306,11 +306,11 @@ Ext.define('CustomApp', {
                 return this.recs.length;
               },
               value: function(value) {
-                console.log("Records for:",yy,zz);
-                console.log("calculating cycle time for #records:",this.recs.length);
+                // console.log("Records for:",yy,zz);
+                // console.log("calculating cycle time for #records:",this.recs.length);
                 // console.log("#records:",this.recs);
                 var ct = (calcCyleTime(this.recs));
-                console.log("ct",ct);
+                // console.log("ct",ct);
                 console.log("#ids",_.pluck(ct,"FormattedID"));
                 console.log("#cycletimes",_.pluck(ct,"ticks"));
                 var mean = _.mean( _.pluck(ct,"ticks"));
@@ -319,11 +319,13 @@ Ext.define('CustomApp', {
                 var min = _.min( _.pluck(ct,"ticks"));
                 var cnt = _.pluck(ct,"ticks").length;
                 var stddev = _.stdDeviation(_.pluck(ct,"ticks"));
+                var cov = (mean!==0) ?stddev / mean : 0;
                 mean = parseFloat(Math.round(mean * 100) / 100).toFixed(2);
                 median = parseFloat(Math.round(median * 100) / 100).toFixed(2);
                 stddev = parseFloat(Math.round(stddev * 100) / 100).toFixed(2);
+                cov    = parseFloat(Math.round(cov * 100) / 100).toFixed(2);
 
-                console.log("values cnt/mean/median/max/min/stddev",cnt,",",mean,",",median,",",max,",",min,",",stddev);
+                console.log("cnt/mean/median/max/min/stddev/cov",cnt,",",mean,",",median,",",max,",",min,",",stddev,",",cov);
                 return mean
               },
               format: numberFormat(0),
@@ -333,7 +335,7 @@ Ext.define('CustomApp', {
         };
 
         var calcCyleTime = function( snapshots ) {
-                console.time("cycle-time");
+                // console.time("cycle-time");
                 var that = this;
                 // var granularity = 'day';
                 var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
