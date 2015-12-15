@@ -16,13 +16,14 @@ Ext.define('CustomApp', {
         // this.startDate = moment().subtract('month',6).toISOString();
         this.startDate = moment().subtract('month',app.getSetting("months")).toISOString();
 
-
-        if ((app.getSetting("stateField") === "") &&
+        if ((app.getSetting("type") === "") &&
+            (app.getSetting("stateField") === "") &&
             (app.getSetting("finalValue") === "")) {
             this.createUI();
         } else {
-            app.kanbanField = app.getSetting("stateField")
-            app.finalValue  = app.getSetting("finalValue")
+            app.type = app.getSetting("type");
+            app.kanbanField = app.getSetting("stateField");
+            app.finalValue  = app.getSetting("finalValue");
         }
 
         var panel = Ext.create('Ext.container.Container', {
@@ -48,9 +49,10 @@ Ext.define('CustomApp', {
 
     defaultSettings : {
 
+        type : "",
         stateField : "",
         finalValue : "",
-        timeInHours : true,
+        timeInHours : false,
         months : 6
 
         }
@@ -58,6 +60,12 @@ Ext.define('CustomApp', {
 
     getSettingsFields: function() {
         var values = [
+            {
+                name: 'type',
+                xtype: 'rallytextfield',
+                label : "Comma delimited list of types eg. Story,Defect or PortfolioItem/Feature"
+            },
+
             {
                 name: 'stateField',
                 xtype: 'rallytextfield',
@@ -179,20 +187,37 @@ Ext.define('CustomApp', {
         this.add(app.boxcontainer);
         
     },
+
+    getTypes : function() {
+
+        var types = _.map( app.type.split(","), function(t) {
+            return t.toUpperCase() !== "STORY" ? t : "HierarchicalRequirement";
+        });
+        console.log("types:",types);
+        return types;
+    },
     
     // reads the snapshots for items that have been completed since the specified start date.
     getCompletedItems : function( callback ) {
         
         var that = this;
 
-        var fetch = ['ObjectID','_TypeHierarchy','_PreviousValues','PlanEstimate','Project',app.kanbanField];
+        var fetch = ['FormattedID','ObjectID','_TypeHierarchy','_PreviousValues','PlanEstimate','Project',app.kanbanField];
         var hydrate = ['_TypeHierarchy',app.kanbanField];
         
         var find = {
-                '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                // '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                '_TypeHierarchy' : { "$in" : app.getTypes() } ,
                 '_ProjectHierarchy' : { "$in": [app.getContext().getProject().ObjectID] },
-                'Children' : { "$exists" : false}
+                // 'Children' : { "$exists" : false}
         };
+        // for stories only include child level items
+        if ( _.findIndex(app.getTypes(),function(t){
+            return t.toUpperCase()==="HIERARCHICALREQUIREMENT";
+        }) !== -1) {
+            find['Children'] = { "$exists" : false}
+        }
+
         find[app.kanbanField] =  app.finalValue;
         find["_PreviousValues."+app.kanbanField] =  {"$ne" : null };
         find["_ValidFrom"] = { "$gte" : app.startDate };
@@ -284,11 +309,21 @@ Ext.define('CustomApp', {
                 console.log("Records for:",yy,zz);
                 console.log("calculating cycle time for #records:",this.recs.length);
                 // console.log("#records:",this.recs);
-
                 var ct = (calcCyleTime(this.recs));
-                // console.log("#cycletimes",_.pluck(ct,"ticks"));
+                console.log("ct",ct);
+                console.log("#ids",_.pluck(ct,"FormattedID"));
+                console.log("#cycletimes",_.pluck(ct,"ticks"));
                 var mean = _.mean( _.pluck(ct,"ticks"));
-                console.log("mean",mean);
+                var median = _.median( _.pluck(ct,"ticks"));
+                var max = _.max( _.pluck(ct,"ticks"));
+                var min = _.min( _.pluck(ct,"ticks"));
+                var cnt = _.pluck(ct,"ticks").length;
+                var stddev = _.stdDeviation(_.pluck(ct,"ticks"));
+                mean = parseFloat(Math.round(mean * 100) / 100).toFixed(2);
+                median = parseFloat(Math.round(median * 100) / 100).toFixed(2);
+                stddev = parseFloat(Math.round(stddev * 100) / 100).toFixed(2);
+
+                console.log("values cnt/mean/median/max/min/stddev",cnt,",",mean,",",median,",",max,",",min,",",stddev);
                 return mean
               },
               format: numberFormat(0),
@@ -298,6 +333,7 @@ Ext.define('CustomApp', {
         };
 
         var calcCyleTime = function( snapshots ) {
+                console.time("cycle-time");
                 var that = this;
                 // var granularity = 'day';
                 var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
@@ -308,7 +344,8 @@ Ext.define('CustomApp', {
                     tz: tz,
                     validFromField: '_ValidFrom',
                     validToField: '_ValidTo',
-                    uniqueIDField: 'ObjectID',
+                    // uniqueIDField: 'ObjectID',
+                    uniqueIDField: 'FormattedID',
                     workDayStartOn: {hour: 13, minute: 0}, // # 09:00 in Chicago is 15:00 in GMT
                     workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
                 };
@@ -318,6 +355,7 @@ Ext.define('CustomApp', {
                 tisc = new window.parent._lumenize.TimeInStateCalculator(config);
                 tisc.addSnapshots(snapshots, start, end);
                 var results = tisc.getResults();
+                console.timeEnd("cycle-time");
                 // callback(null,results);
                 return results;
         };
@@ -333,8 +371,6 @@ Ext.define('CustomApp', {
         var completedDateDeriver = function(record) {
             return moment(record.CompletedDate).format ("MMM YYYY");
         }
-
-
 
         var data = _.map(snapshots,function(s) { 
             return s.data;
@@ -381,7 +417,7 @@ Ext.define('CustomApp', {
         var configs = _.map(projectOids, function(p) {
             return {
                     model : "Project",
-                    fetch : ["Name","ObjectID"],
+                    fetch : ["Name","ObjectID","FormattedID"],
                     filters : [{property:"ObjectID",value:p}]
                 };
         });
@@ -422,10 +458,11 @@ Ext.define('CustomApp', {
 
         var configs = _.map( oidsArrays, function(oArray) {
             return {
-                fetch : ['_UnformattedID','ObjectID','_TypeHierarchy','PlanEstimate', 'ScheduleState',app.kanbanField],
+                fetch : ['FormattedID','_UnformattedID','ObjectID','_TypeHierarchy','PlanEstimate', 'ScheduleState',app.kanbanField],
                 hydrate : ['_TypeHierarchy','ScheduleState',app.kanbanField],
                 find : {
-                    '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                    // '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                    '_TypeHierarchy' : { "$in" : app.getTypes() } ,
                     '_ProjectHierarchy' : { "$in": [app.getContext().getProject().ObjectID] }, 
                     'ObjectID' : { "$in" : oArray }
                 }
@@ -465,19 +502,6 @@ Ext.define('CustomApp', {
         
     },
     
-    processSnapshots : function(completedItems,snapshots,callback) {
-        var groupedByState = _.groupBy(snapshots, function(s) { return s.get(app.kanbanField);});
-        console.log("grouped",groupedByState);
-        var stateSnapshots = _.map( _.keys(groupedByState), function(state) { return { state : state, snapshots : groupedByState[state]}; });
-        async.map(stateSnapshots, app.calcCyleTimeForState, function(err,results) {
-            _.each(results, function(result,i) {
-                stateSnapshots[i].results = result; 
-            });
-            // that.reportResults(stateSnapshots);
-            callback(null,stateSnapshots);
-        });
-    },
-
     wsapiQuery : function( config , callback ) {
         Ext.create('Rally.data.WsapiDataStore', {
             autoLoad : true,
@@ -493,33 +517,6 @@ Ext.define('CustomApp', {
                 }
             }
         });
-    },
-
-    
-    calcCyleTimeForState : function( stateSnapshots, callback ) {
-        var that = this;
-        var snapshots = _.pluck(stateSnapshots.snapshots,function(s) { return s.data;});
-        // var granularity = 'day';
-        var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
-        var tz = 'America/New_York';
-        
-        var config = { //  # default work days and holidays
-            granularity: granularity,
-            tz: tz,
-            validFromField: '_ValidFrom',
-            validToField: '_ValidTo',
-            uniqueIDField: 'ObjectID',
-            workDayStartOn: {hour: 13, minute: 0}, // # 09:00 in Chicago is 15:00 in GMT
-            workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
-
-        };
-        
-        var start = moment().dayOfYear(0).toISOString();
-        var end =   moment().toISOString();
-        tisc = new window.parent._lumenize.TimeInStateCalculator(config);
-        tisc.addSnapshots(snapshots, start, end);
-        var results = tisc.getResults();
-        callback(null,results);
-    },
+    }
 
 });

@@ -3,7 +3,7 @@
 <head>
     <title>cycletimebystate</title>
 
-    <script type="text/javascript" src="/apps/2.0rc3/sdk.js"></script>
+    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/async/1.22/async.min.js"></script>
     <script type="text/javascript" src="https://storage.googleapis.com/versions.lumenize.com/v0.7.2/Lumenize-min.js"></script>
     <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.0rc1/lib/analytics/analytics-all.js"></script>
@@ -32,13 +32,14 @@ Ext.define('CustomApp', {
         // this.startDate = moment().subtract('month',6).toISOString();
         this.startDate = moment().subtract('month',app.getSetting("months")).toISOString();
 
-
-        if ((app.getSetting("stateField") === "") &&
+        if ((app.getSetting("type") === "") &&
+            (app.getSetting("stateField") === "") &&
             (app.getSetting("finalValue") === "")) {
             this.createUI();
         } else {
-            app.kanbanField = app.getSetting("stateField")
-            app.finalValue  = app.getSetting("finalValue")
+            app.type = app.getSetting("type");
+            app.kanbanField = app.getSetting("stateField");
+            app.finalValue  = app.getSetting("finalValue");
         }
 
         var panel = Ext.create('Ext.container.Container', {
@@ -64,9 +65,10 @@ Ext.define('CustomApp', {
 
     defaultSettings : {
 
+        type : "",
         stateField : "",
         finalValue : "",
-        timeInHours : true,
+        timeInHours : false,
         months : 6
 
         }
@@ -74,6 +76,12 @@ Ext.define('CustomApp', {
 
     getSettingsFields: function() {
         var values = [
+            {
+                name: 'type',
+                xtype: 'rallytextfield',
+                label : "Comma delimited list of types eg. Story,Defect or PortfolioItem/Feature"
+            },
+
             {
                 name: 'stateField',
                 xtype: 'rallytextfield',
@@ -195,20 +203,37 @@ Ext.define('CustomApp', {
         this.add(app.boxcontainer);
         
     },
+
+    getTypes : function() {
+
+        var types = _.map( app.type.split(","), function(t) {
+            return t.toUpperCase() !== "STORY" ? t : "HierarchicalRequirement";
+        });
+        console.log("types:",types);
+        return types;
+    },
     
     // reads the snapshots for items that have been completed since the specified start date.
     getCompletedItems : function( callback ) {
         
         var that = this;
 
-        var fetch = ['ObjectID','_TypeHierarchy','_PreviousValues','PlanEstimate','Project',app.kanbanField];
+        var fetch = ['FormattedID','ObjectID','_TypeHierarchy','_PreviousValues','PlanEstimate','Project',app.kanbanField];
         var hydrate = ['_TypeHierarchy',app.kanbanField];
         
         var find = {
-                '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                // '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                '_TypeHierarchy' : { "$in" : app.getTypes() } ,
                 '_ProjectHierarchy' : { "$in": [app.getContext().getProject().ObjectID] },
-                'Children' : { "$exists" : false}
+                // 'Children' : { "$exists" : false}
         };
+        // for stories only include child level items
+        if ( _.findIndex(app.getTypes(),function(t){
+            return t.toUpperCase()==="HIERARCHICALREQUIREMENT";
+        }) !== -1) {
+            find['Children'] = { "$exists" : false}
+        }
+
         find[app.kanbanField] =  app.finalValue;
         find["_PreviousValues."+app.kanbanField] =  {"$ne" : null };
         find["_ValidFrom"] = { "$gte" : app.startDate };
@@ -300,11 +325,21 @@ Ext.define('CustomApp', {
                 console.log("Records for:",yy,zz);
                 console.log("calculating cycle time for #records:",this.recs.length);
                 // console.log("#records:",this.recs);
-
                 var ct = (calcCyleTime(this.recs));
-                // console.log("#cycletimes",_.pluck(ct,"ticks"));
+                console.log("ct",ct);
+                console.log("#ids",_.pluck(ct,"FormattedID"));
+                console.log("#cycletimes",_.pluck(ct,"ticks"));
                 var mean = _.mean( _.pluck(ct,"ticks"));
-                console.log("mean",mean);
+                var median = _.median( _.pluck(ct,"ticks"));
+                var max = _.max( _.pluck(ct,"ticks"));
+                var min = _.min( _.pluck(ct,"ticks"));
+                var cnt = _.pluck(ct,"ticks").length;
+                var stddev = _.stdDeviation(_.pluck(ct,"ticks"));
+                mean = parseFloat(Math.round(mean * 100) / 100).toFixed(2);
+                median = parseFloat(Math.round(median * 100) / 100).toFixed(2);
+                stddev = parseFloat(Math.round(stddev * 100) / 100).toFixed(2);
+
+                console.log("values cnt/mean/median/max/min/stddev",cnt,",",mean,",",median,",",max,",",min,",",stddev);
                 return mean
               },
               format: numberFormat(0),
@@ -314,6 +349,7 @@ Ext.define('CustomApp', {
         };
 
         var calcCyleTime = function( snapshots ) {
+                console.time("cycle-time");
                 var that = this;
                 // var granularity = 'day';
                 var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
@@ -324,7 +360,8 @@ Ext.define('CustomApp', {
                     tz: tz,
                     validFromField: '_ValidFrom',
                     validToField: '_ValidTo',
-                    uniqueIDField: 'ObjectID',
+                    // uniqueIDField: 'ObjectID',
+                    uniqueIDField: 'FormattedID',
                     workDayStartOn: {hour: 13, minute: 0}, // # 09:00 in Chicago is 15:00 in GMT
                     workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
                 };
@@ -334,6 +371,7 @@ Ext.define('CustomApp', {
                 tisc = new window.parent._lumenize.TimeInStateCalculator(config);
                 tisc.addSnapshots(snapshots, start, end);
                 var results = tisc.getResults();
+                console.timeEnd("cycle-time");
                 // callback(null,results);
                 return results;
         };
@@ -349,8 +387,6 @@ Ext.define('CustomApp', {
         var completedDateDeriver = function(record) {
             return moment(record.CompletedDate).format ("MMM YYYY");
         }
-
-
 
         var data = _.map(snapshots,function(s) { 
             return s.data;
@@ -397,7 +433,7 @@ Ext.define('CustomApp', {
         var configs = _.map(projectOids, function(p) {
             return {
                     model : "Project",
-                    fetch : ["Name","ObjectID"],
+                    fetch : ["Name","ObjectID","FormattedID"],
                     filters : [{property:"ObjectID",value:p}]
                 };
         });
@@ -438,10 +474,11 @@ Ext.define('CustomApp', {
 
         var configs = _.map( oidsArrays, function(oArray) {
             return {
-                fetch : ['_UnformattedID','ObjectID','_TypeHierarchy','PlanEstimate', 'ScheduleState',app.kanbanField],
+                fetch : ['FormattedID','_UnformattedID','ObjectID','_TypeHierarchy','PlanEstimate', 'ScheduleState',app.kanbanField],
                 hydrate : ['_TypeHierarchy','ScheduleState',app.kanbanField],
                 find : {
-                    '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                    // '_TypeHierarchy' : { "$in" : ["HierarchicalRequirement","Defect"]} ,
+                    '_TypeHierarchy' : { "$in" : app.getTypes() } ,
                     '_ProjectHierarchy' : { "$in": [app.getContext().getProject().ObjectID] }, 
                     'ObjectID' : { "$in" : oArray }
                 }
@@ -481,19 +518,6 @@ Ext.define('CustomApp', {
         
     },
     
-    processSnapshots : function(completedItems,snapshots,callback) {
-        var groupedByState = _.groupBy(snapshots, function(s) { return s.get(app.kanbanField);});
-        console.log("grouped",groupedByState);
-        var stateSnapshots = _.map( _.keys(groupedByState), function(state) { return { state : state, snapshots : groupedByState[state]}; });
-        async.map(stateSnapshots, app.calcCyleTimeForState, function(err,results) {
-            _.each(results, function(result,i) {
-                stateSnapshots[i].results = result; 
-            });
-            // that.reportResults(stateSnapshots);
-            callback(null,stateSnapshots);
-        });
-    },
-
     wsapiQuery : function( config , callback ) {
         Ext.create('Rally.data.WsapiDataStore', {
             autoLoad : true,
@@ -509,116 +533,153 @@ Ext.define('CustomApp', {
                 }
             }
         });
-    },
-
-    
-    calcCyleTimeForState : function( stateSnapshots, callback ) {
-        var that = this;
-        var snapshots = _.pluck(stateSnapshots.snapshots,function(s) { return s.data;});
-        // var granularity = 'day';
-        var granularity = app.getSetting("timeInHours") === false ? 'day' : 'hour';
-        var tz = 'America/New_York';
-        
-        var config = { //  # default work days and holidays
-            granularity: granularity,
-            tz: tz,
-            validFromField: '_ValidFrom',
-            validToField: '_ValidTo',
-            uniqueIDField: 'ObjectID',
-            workDayStartOn: {hour: 13, minute: 0}, // # 09:00 in Chicago is 15:00 in GMT
-            workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
-
-        };
-        
-        var start = moment().dayOfYear(0).toISOString();
-        var end =   moment().toISOString();
-        tisc = new window.parent._lumenize.TimeInStateCalculator(config);
-        tisc.addSnapshots(snapshots, start, end);
-        var results = tisc.getResults();
-        callback(null,results);
-    },
+    }
 
 });
 
-                // underscore addon with sum, mean, median and nrange function
-// see details below
- 
-_.mixin({
-  
-  // Return sum of the elements
-  sum : function(obj, iterator, context) {
-    if (!iterator && _.isEmpty(obj)) return 0;
-    var result = 0;
-    if (!iterator && _.isArray(obj)){
-      for(var i=obj.length-1;i>-1;i-=1){
-        result += obj[i];
-      };
-      return result;
-    };
-    _.each(obj, function(value, index, list) {
-      var computed = iterator ? iterator.call(context, value, index, list) : value;
-      result += computed;
-    });
-    return result;
-  },
-  
-  // Return aritmethic mean of the elements
-  // if an iterator function is given, it is applied before
-  mean : function(obj, iterator, context) {
-    if (!iterator && _.isEmpty(obj)) return Infinity;
-    if (!iterator && _.isArray(obj)) return _.sum(obj)/obj.length;
-    if (_.isArray(obj) && !_.isEmpty(obj)) return _.sum(obj, iterator, context)/obj.length;
-  },
-  
-  // Return median of the elements 
-  // if the object element number is odd the median is the 
-  // object in the "middle" of a sorted array
-  // in case of an even number, the arithmetic mean of the two elements
-  // in the middle (in case of characters or strings: obj[n/2-1] ) is returned.
-  // if an iterator function is provided, it is applied before
-  median : function(obj, iterator, context) {
-    if (_.isEmpty(obj)) return Infinity;
-    var tmpObj = [];
-    if (!iterator && _.isArray(obj)){
-      tmpObj = _.clone(obj);
-      tmpObj.sort(function(f,s){return f-s;});
-    }else{
-      _.isArray(obj) && _.each(obj, function(value, index, list) {
-        tmpObj.push(iterator ? iterator.call(context, value, index, list) : value);
-        tmpObj.sort();
-      });
-    };
-    return tmpObj.length%2 ? tmpObj[Math.floor(tmpObj.length/2)] : (_.isNumber(tmpObj[tmpObj.length/2-1]) && _.isNumber(tmpObj[tmpObj.length/2])) ? (tmpObj[tmpObj.length/2-1]+tmpObj[tmpObj.length/2]) /2 : tmpObj[tmpObj.length/2-1];
-  },
-  
-  // Generate an integer Array containing an arithmetic progression. A port of
-  // the native Python `range()` function. See
-  // [the Python documentation](http://docs.python.org/library/functions.html#range).
-  // replacement of old _.range() faster + incl. convenience operations: 
-  //    _.nrange(start, stop) will automatically set step to +1/-1 
-  //    _.nrange(+/- stop) will automatically start = 0 and set step to +1/-1
-  nrange : function(start, stop, step) {
-    if (arguments.length <= 1) {
-      if (start === 0)
-        return [];
-      stop = start || 0;
-      start = 0;
+                (function() {
+
+  var math = this.math = {};
+
+  // Arithmetic mean
+  // math.mean([1,2,3])
+  //   => 2
+  math.mean = math.ave = math.average = function(obj, key) {
+    return math.sum(obj, key) / _.size(obj);
+  };
+
+  // math.median([1,2,3,4])
+  //   => 2.5
+  //   TODO {}, [{}]
+  math.median = function(arr) {
+    arr = arr.slice(0); // create copy
+    var middle = (arr.length + 1) / 2,
+      sorted = math.sort(arr);
+    return (sorted.length % 2) ? sorted[middle - 1] : (sorted[middle - 1.5] + sorted[middle - 0.5]) / 2;
+  };
+
+  // Power, exponent
+  // math.pow(2,3)
+  //   => 8
+  math.pow = math.power = function(x, n) {
+     if (_.isNumber(x))
+        return Math.pow(x, n);
+     if (_.isArray(x))
+        return _.map(x, function(i) { return _.pow(i, n); });
+  };
+
+  // Round
+  // math.round(12345.6789, 2)
+  //   => 12345.68
+  math.round = function(number, decimals) {
+    return Math.round(number * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  };
+
+  // Scale to max value
+  // math.scale(1,[2,5,10])
+  //   => [ 0.2, 0.5, 1]
+  math.scale = function(arr, max) {
+    max = max || 1;
+    var max0 = _.max(arr);
+    return _.map(arr, function(i) { return i * (max / max0); });
+  };
+
+  // Slope between two points
+  // math.slope([0,0],[1,2])
+  //   => 2
+  math.slope = function(x, y) {
+    return (y[1] - x[1]) / (y[0] - x[0]);
+  };
+
+  // Numeric sort
+  // math.sort([3,1,2])
+  //   => [1,2,3]
+  math.sort = function(arr) {
+    return _.sortBy(arr, _.identity);
+  };
+
+   // math.stdDeviation([1,2,3])
+  //   => 0.816496580927726
+  math.stdDeviation = math.sigma = function(arr) {
+    return Math.sqrt(_.variance(arr));
+  };
+
+  // Sum of array
+  // math.sum([1,2,3])
+  //   => 6
+  // math.sum([{b: 4},{b: 5},{b: 6}], 'b')
+  //   => 15
+  math.sum = function(obj, key) {
+    var arr;
+    if (_.isArray(obj) && typeof obj[0] === 'number') {
+      arr = obj;
+    } else {
+      key = key || 'value';
+      arr = _.pluck(obj, key);
     }
-    step = arguments[2] || 1*(start < stop) || -1;
-    
-    var len = Math.max(Math.ceil((stop - start) / step), 0);
-    var idx = 0;
-    var range = new Array(len);
- 
-    do {
-      range[idx] = start;
-      start += step;
-    } while((idx += 1) < len);
-    
-    return range;
-  }
- 
-})
+    var val = 0, i;
+    for (i = 0; i < arr.length; i++)
+      val += (arr[i]-0);
+    return val;
+  };
+
+  // math.transpose(([1,2,3], [4,5,6], [7,8,9]])
+  //   => [[1,4,7], [2,5,8], [3,6,9]]
+  math.transpose = function(arr) {
+    var trans = [];
+    _.each(arr, function(row, y){
+      _.each(row, function(col, x){
+        if (!trans[x]) trans[x] = [];
+        trans[x][y] = col;
+      });
+    });
+    return trans;
+  };
+
+  // math.variance([1,2,3])
+  //   => 2/3
+  math.variance = function(arr) {
+    var mean = _.mean(arr),
+      variance = function(x) { return _.pow( x - mean, 2); };
+    return _(arr).map(variance).mean().value();
+  };
+
+  // Standard score, assuming normal distribution
+  // math.zscore([1,2,3])
+  //   => [-1.224744871391589, 0, 1.224744871391589]
+  math.zscore = function(obj, key) {
+    var arr;
+    if (_.isArray(obj) && typeof obj[0] === 'number') {
+      arr = obj;
+    } else {
+      key = key || 'value';
+      arr = _.pluck(obj, key);
+    }
+
+    var mean = _.mean(arr),
+        sigma = _.stdDeviation(arr),
+        zscore = function(d) { return (d - mean) / sigma; };
+    return _.map(arr, zscore);
+  };
+
+  // math.movingAvg([1,2,3,4,5], 3);
+  //   => [2,3,4]
+  math.movingAvg = math.movingAverage = function(arr, size) {
+    var win, i, newarr = [];
+    for(i = size-1; i <= arr.length; i++) {
+      win = arr.slice(i - size, i);
+      if (win.length === size) {
+        newarr.push(_.mean(win));
+      }
+    }
+    return newarr;
+  };
+
+  // add methods to Underscore.js namespace
+  _.mixin(math);
+
+})();
+
 
             Rally.launchApp('CustomApp', {
                 name:"cycletimebystate",
@@ -629,12 +690,14 @@ _.mixin({
     </script>
 
 
+
     <style type="text/css">
         .app {
   /* Add app styles here */
 }
 
     </style>
+
     <style type="text/css">
         table.pvtTable {
   font-family: arial;
