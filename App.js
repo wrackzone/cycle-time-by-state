@@ -352,7 +352,8 @@ Ext.define('CustomApp', {
                     workDayEndBefore: {hour: 22, minute: 0} // # 11:00 in Chicago is 17:00 in GMT  # 
                 };
                 
-                var start = moment().dayOfYear(0).toISOString();
+                // var start = moment().dayOfYear(0).toISOString();
+                var start = moment().subtract(1, 'years').toISOString();
                 var end =   moment().toISOString();
                 var tisc = null;
                 if (_.isUndefined(window.parent._lumenize)) {
